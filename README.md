@@ -1,2 +1,2 @@
-# celebrity-escrow
-Censorship-resistant P2P escrow with Bitcoin and Nostr
+# Celebrity escrow
+Censorship resistant peer to peer escrow with bitcoin and nostr
