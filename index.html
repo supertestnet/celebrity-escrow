@@ -17,8 +17,12 @@
   </script>
   <title>Celebrity Escrow</title>
   <script>
-    //todo: hash the terms and use that hash to tweak the escrow's pubkey
-    //todo: hide the taker won and maker won buttons until the contract is ready
+    //todo: broadcast the transactions when the users click the buttons
+    //todo: hide the "maker won" and "taker won" buttons from the taker and the maker until the contract is ready
+    //todo: automatically detect when each user's money arrives instead of prompting them to paste in a txid + vout
+    //todo: automatically detect when the money is paid out & show the users a success message with info about who won
+    //todo: figure out how to ensure users can "come back to" a contract after several days or weeks by merely clicking a link (this isn't safe to do right now because the page automatically does some stuff on pageload which it shouldn't do if the contract is already finalized and you're just waiting on results)
+    //todo: add an automatic refund checkbox which, if clicked, makes it so that if the escrow never responds, both users get their money back after a timelock expires
     function pubkeyToNpub(hex) {
       return bech32.bech32.encode("npub", bech32.bech32.toWords(buffer.Buffer.from(hex, "hex")));
     }
@@ -33,6 +37,25 @@
 
     function privkeyFromNsec(nsec) {
       return buffer.Buffer.from(bech32.bech32.fromWords(bech32.bech32.decode(nsec).words)).toString("hex");
+    }
+    function tweakAndNegateIfOdd( privkey, tweak ) {
+        var tweaked_key = add2Privkeys( privkey, tweak );
+        var tweaked_pubkey = nobleSecp256k1.getPublicKey( tweaked_key, true );
+        if ( tweaked_pubkey.startsWith( "02" ) ) return tweaked_key;
+        var negated = ( ( nobleSecp256k1.CURVE.n - BigInt( "0x" + privkey ) ) ).toString( 16 );
+        tweaked_key = add2Privkeys( negated, tweak );
+        return tweaked_key;
+    }
+    function add2PubkeysAndReturnCompressedPubkeyOfResult( pubkey1, pubkey2 ) {
+            var combokey = nobleSecp256k1.Point.fromHex( pubkey1 ).add( nobleSecp256k1.Point.fromHex( pubkey2 ) ).toHex();
+            return bitcoinjs.ECPair.fromPublicKey( Buffer.from( combokey, "hex" ) ).publicKey.toString( "hex" );
+    }
+    function add2Privkeys( privkey1, privkey2 ) {
+            var combokey = ( ( BigInt( "0x" + privkey1 ) + BigInt( "0x" + privkey2 ) ) % BigInt( "0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2f" ) ).toString( 16 );
+            var padding = "0000000000000000000000000000000000000000000000000000000000000000";
+            padding = padding + combokey;
+            combokey = padding.slice( -64 );
+            return combokey;
     }
   </script>
   <style>
@@ -136,8 +159,9 @@
     sessionStorage.removeItem( "taker_npub" );
     sessionStorage.removeItem( "escrow_npub" );
     var createPreContract = async (json, ephemeral_priv) => {
-      sessionStorage.ephemeral_priv = ephemeral_priv;
+      var ephemeral_priv = bytesToHex( nobleSecp256k1.utils.randomPrivateKey() );
       var ephemeral_pub = nobleSecp256k1.getPublicKey( ephemeral_priv, true ).substring( 2 );
+      sessionStorage.ephemeral_priv = ephemeral_priv;
       var event = {
           "content"    : encrypt( privKey, ephemeral_pub, JSON.stringify( {maker_sats: json.maker_sats,taker_sats: json.taker_sats,escrow_sats: json.escrow_sats,contract_text: json.contract_text, escrow_pub: json.escrow_pub, maker_pub: json.maker_pub, maker_address: json.maker_address, taker_address: json.taker_address, maker_nym: json.maker_nym, maker_pic: json.maker_pic, taker_nym: json.taker_nym, taker_pic: json.taker_pic, escrow_nym: json.escrow_nym, escrow_pic: json.escrow_pic} ) ),
           "created_at" : Math.floor( Date.now() / 1000 ),
@@ -327,7 +351,11 @@
                 if ( $_GET[ "role" ] == "taker" ) {
                     var taker_address = sessionStorage[ "taker_address" ];
                     var pubkey = "abababababababababababababababababababababababababababababababab";
-                    var script = [pubkeyFromNpub( json["maker_pub"] ), 'OP_CHECKSIG', 'OP_SWAP', pubKey, 'OP_CHECKSIG', 'OP_ADD', 'OP_SWAP', json["escrow_pub"], 'OP_CHECKSIG', 'OP_ADD', 'OP_1', 'OP_GREATERTHAN'
+                    var contract_hash = bytesToHex( bitcoinjs.crypto.sha256( json[ "contract_text" ] ) );
+                    contract_hash = "0000000000000000" + contract_hash.substring( 16 );
+                    var hash_pub = nobleSecp256k1.getPublicKey( contract_hash, true ).substring( 2 );
+                    var tweaked_key = add2PubkeysAndReturnCompressedPubkeyOfResult( json["escrow_pub"], hash_pub ).substring( 2 );
+                    var script = [pubkeyFromNpub( json["maker_pub"] ), 'OP_CHECKSIG', 'OP_SWAP', pubKey, 'OP_CHECKSIG', 'OP_ADD', 'OP_SWAP', tweaked_key, 'OP_CHECKSIG', 'OP_ADD', 'OP_1', 'OP_GREATERTHAN'
                     ];
                     // console.log( "script:", script );
                     // For tapscript spends, we need to convert this script into a 'tapleaf'.
@@ -472,7 +500,11 @@
                 if ( $_GET[ "role" ] == "maker" || !$_GET[ "role" ] ) {
                     $('.taker_won').onclick = async () => {
                       var pubkey = "abababababababababababababababababababababababababababababababab";
-                      var script = [pubkeyFromNpub( json["maker_pub"] ), 'OP_CHECKSIG', 'OP_SWAP', event.pubkey, 'OP_CHECKSIG', 'OP_ADD', 'OP_SWAP', json["escrow_pub"], 'OP_CHECKSIG', 'OP_ADD', 'OP_1', 'OP_GREATERTHAN'
+                      var contract_hash = bytesToHex( bitcoinjs.crypto.sha256( json[ "contract_text" ] ) );
+                      contract_hash = "0000000000000000" + contract_hash.substring( 16 );
+                      var hash_pub = nobleSecp256k1.getPublicKey( contract_hash, true ).substring( 2 );
+                      var tweaked_key = add2PubkeysAndReturnCompressedPubkeyOfResult( json["escrow_pub"], hash_pub ).substring( 2 );
+                      var script = [pubkeyFromNpub( json["maker_pub"] ), 'OP_CHECKSIG', 'OP_SWAP', event.pubkey, 'OP_CHECKSIG', 'OP_ADD', 'OP_SWAP', tweaked_key, 'OP_CHECKSIG', 'OP_ADD', 'OP_1', 'OP_GREATERTHAN'
                       ];
                       // console.log( script );
                       // For tapscript spends, we need to convert this script into a 'tapleaf'.
@@ -540,7 +572,11 @@
                             console.log( JSON.parse( event.content ) );
                             var pubkey = "abababababababababababababababababababababababababababababababab";
                             var json = JSON.parse(sessionStorage["json"]);
-                            var script = [pubkeyFromNpub( json["maker_pub"] ), 'OP_CHECKSIG', 'OP_SWAP', sessionStorage.taker, 'OP_CHECKSIG', 'OP_ADD', 'OP_SWAP', json["escrow_pub"], 'OP_CHECKSIG', 'OP_ADD', 'OP_1', 'OP_GREATERTHAN'
+                            var contract_hash = bytesToHex( bitcoinjs.crypto.sha256( json[ "contract_text" ] ) );
+                            contract_hash = "0000000000000000" + contract_hash.substring( 16 );
+                            var hash_pub = nobleSecp256k1.getPublicKey( contract_hash, true ).substring( 2 );
+                            var tweaked_key = add2PubkeysAndReturnCompressedPubkeyOfResult( json["escrow_pub"], hash_pub ).substring( 2 );
+                            var script = [pubkeyFromNpub( json["maker_pub"] ), 'OP_CHECKSIG', 'OP_SWAP', sessionStorage.taker, 'OP_CHECKSIG', 'OP_ADD', 'OP_SWAP', tweaked_key, 'OP_CHECKSIG', 'OP_ADD', 'OP_1', 'OP_GREATERTHAN'
                             ];
                             console.log( "script:", script );
                             // For tapscript spends, we need to convert this script into a 'tapleaf'.
@@ -587,11 +623,11 @@
                                 scriptPubKey: tapscript.Address.toScriptPubKey(escrow_address)
                               }]
                             });
-                            var sig1 = tapscript.Signer.taproot.sign( privKey, txdata, 0, {
+                            var sig1 = tapscript.Signer.taproot.sign( tweakAndNegateIfOdd( privKey, contract_hash ), txdata, 0, {
                               extension: tapleaf
                             });
                             // var sig2 = json["taker_sig"][0];
-                            var sig2 = tapscript.Signer.taproot.sign( privKey, txdata, 1, {
+                            var sig2 = tapscript.Signer.taproot.sign( tweakAndNegateIfOdd( privKey, contract_hash ), txdata, 1, {
                               extension: tapleaf
                             });
                             console.log("sighash for vin 0:", tapscript.Signer.taproot.hash( txdata, 0, {throws: true} ), "sighash for vin 1:", tapscript.Signer.taproot.hash( txdata, 1, {throws: true} ) );
@@ -611,7 +647,11 @@
                             console.log( JSON.parse( event.content ) );
                             var pubkey = "abababababababababababababababababababababababababababababababab";
                             var json = JSON.parse(sessionStorage["json"]);
-                            var script = [pubkeyFromNpub( json["maker_pub"] ), 'OP_CHECKSIG', 'OP_SWAP', sessionStorage.taker, 'OP_CHECKSIG', 'OP_ADD', 'OP_SWAP', json["escrow_pub"], 'OP_CHECKSIG', 'OP_ADD', 'OP_1', 'OP_GREATERTHAN'
+                            var contract_hash = bytesToHex( bitcoinjs.crypto.sha256( json[ "contract_text" ] ) );
+                            contract_hash = "0000000000000000" + contract_hash.substring( 16 );
+                            var hash_pub = nobleSecp256k1.getPublicKey( contract_hash, true ).substring( 2 );
+                            var tweaked_key = add2PubkeysAndReturnCompressedPubkeyOfResult( json["escrow_pub"], hash_pub ).substring( 2 );
+                            var script = [pubkeyFromNpub( json["maker_pub"] ), 'OP_CHECKSIG', 'OP_SWAP', sessionStorage.taker, 'OP_CHECKSIG', 'OP_ADD', 'OP_SWAP', tweaked_key, 'OP_CHECKSIG', 'OP_ADD', 'OP_1', 'OP_GREATERTHAN'
                             ];
                             console.log( "script:", script );
                             // console.log( script );
@@ -659,11 +699,11 @@
                                 scriptPubKey: tapscript.Address.toScriptPubKey(escrow_address)
                               }]
                             });
-                            var sig1 = tapscript.Signer.taproot.sign( privKey, txdata, 0, {
+                            var sig1 = tapscript.Signer.taproot.sign( tweakAndNegateIfOdd( privKey, contract_hash ), txdata, 0, {
                               extension: tapleaf
                             });
                             // var sig2 = json["taker_sig"][0];
-                            var sig2 = tapscript.Signer.taproot.sign( privKey, txdata, 1, {
+                            var sig2 = tapscript.Signer.taproot.sign( tweakAndNegateIfOdd( privKey, contract_hash ), txdata, 1, {
                               extension: tapleaf
                             });
                             console.log("sighash for vin 0:", tapscript.Signer.taproot.hash( txdata, 0, {throws: true} ), "sighash for vin 1:", tapscript.Signer.taproot.hash( txdata, 1, {throws: true} ) );
@@ -896,8 +936,6 @@
             var taker_pic = sessionStorage.taker_pic;
             var escrow_nym = sessionStorage.escrow_nym;
             var escrow_pic = sessionStorage.escrow_pic;
-            var ephemeral_priv = bytesToHex( nobleSecp256k1.utils.randomPrivateKey() );
-            var ephemeral_pub = nobleSecp256k1.getPublicKey( ephemeral_priv, true ).substring( 2 );
             var json = {
               maker_nsec,
               maker_pub,
@@ -917,7 +955,7 @@
             }
             sessionStorage["json"] = JSON.stringify(json);
             //stow the info on nostr and get the event id
-            var url = await createPreContract(json, ephemeral_priv);
+            var url = await createPreContract(json);
         }
         if ($_GET["role"] == "taker") {
             var takertime = async () => {
@@ -973,7 +1011,11 @@
             var json = JSON.parse(sessionStorage["json"]);
             json.taker_pub = pubKey;
             sessionStorage["json"] = JSON.stringify( json );
-            var script = [pubkeyFromNpub( json["maker_pub"] ), 'OP_CHECKSIG', 'OP_SWAP', json["taker_pub"], 'OP_CHECKSIG', 'OP_ADD', 'OP_SWAP', json["escrow_pub"], 'OP_CHECKSIG', 'OP_ADD', 'OP_1', 'OP_GREATERTHAN'
+            var contract_hash = bytesToHex( bitcoinjs.crypto.sha256( json[ "contract_text" ] ) );
+            contract_hash = "0000000000000000" + contract_hash.substring( 16 );
+            var hash_pub = nobleSecp256k1.getPublicKey( contract_hash, true ).substring( 2 );
+            var tweaked_key = add2PubkeysAndReturnCompressedPubkeyOfResult( json["escrow_pub"], hash_pub ).substring( 2 );
+            var script = [pubkeyFromNpub( json["maker_pub"] ), 'OP_CHECKSIG', 'OP_SWAP', json["taker_pub"], 'OP_CHECKSIG', 'OP_ADD', 'OP_SWAP', tweaked_key, 'OP_CHECKSIG', 'OP_ADD', 'OP_1', 'OP_GREATERTHAN'
             ];
             console.log( "script:", script );
             // For tapscript spends, we need to convert this script into a 'tapleaf'.
@@ -1063,7 +1105,11 @@
               socket.addEventListener( "message", handleMessage );
               //previously I (the maker) created a subscription to find the taker's reply to this event
               //now that I have it I should get their pubkey and create the bitcoin address
-              var pubkeys = [pubkeyFromNpub( json[ "maker_pub" ] ), $_GET[ "taker" ], json[ "escrow_pub" ] ];
+              var contract_hash = bytesToHex( bitcoinjs.crypto.sha256( json[ "contract_text" ] ) );
+              contract_hash = "0000000000000000" + contract_hash.substring( 16 );
+              var hash_pub = nobleSecp256k1.getPublicKey( contract_hash, true ).substring( 2 );
+              var tweaked_key = add2PubkeysAndReturnCompressedPubkeyOfResult( json["escrow_pub"], hash_pub ).substring( 2 );
+              var pubkeys = [pubkeyFromNpub( json[ "maker_pub" ] ), $_GET[ "taker" ], tweaked_key ];
               console.log( "right thing found", pubkeys );
               var pubkey = "abababababababababababababababababababababababababababababababab";
               var script = [pubkeys[ 0 ], 'OP_CHECKSIG', 'OP_SWAP', pubkeys[ 1 ], 'OP_CHECKSIG', 'OP_ADD',
