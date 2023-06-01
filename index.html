@@ -1361,6 +1361,7 @@
             var makertime = async () => {
               $( '.desc_of_celebrity_escrow' ).style.display = "none";
               $( 'hr' ).style.display = "none";
+              var json = await getNote( "json" );
               var json = JSON.parse( sessionStorage.json );
               $$( '.minfo' )[ 0 ].style.display = "inline-block";
               $$( '.minfo .pic' )[ 0 ].src = json[ "maker_pic" ];
