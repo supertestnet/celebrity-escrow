@@ -997,21 +997,17 @@
         }
 
         async function addressReceivedMoneyInTheseTxs(address, network) {
-            let txid = [];
-            let vout = [];
-            let amt = [];
+            let txinfo = [];
             let nonjson = await getData("https://mempool.space/" + network + "api/address/" + address + "/txs");
             let json = JSON.parse(nonjson);
             json.forEach(function (tx) {
-                tx["vout"].forEach(function (output, index) {
+                tx["vout"].forEach(function (output, vout) {
                     if (output["scriptpubkey_address"] == address) {
-                        txid.push( tx["txid"] );
-                        vout.push( index );
-                        amt.push( output["value"] );
+                        txinfo.push( [ tx["txid"], vout, output[ "value" ] ] );
                     }
                 });
             });
-            return [txid, vout, amt];
+            return txinfo;
         }
 
         async function addressOnceHadMoney( address, network ) {
