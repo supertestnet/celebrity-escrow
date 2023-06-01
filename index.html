@@ -1420,9 +1420,9 @@
                   return 1;
               });
               if ( $( '.modal div' ) ) $( '.modal div' ).click();
-              var txid = txinfo[ 0 ][ 0 ];
-              var vout = txinfo[ 0 ][ 1 ];
-              var amt = txinfo[ 0 ][ 2 ];
+              var txid1 = txinfo[ 0 ][ 0 ];
+              var vout1 = txinfo[ 0 ][ 1 ];
+              var amt1 = txinfo[ 0 ][ 2 ];
               // var txid = prompt(`Please deposit sats to this address: ${address}, then enter the txid of your deposit`);
               // var vout = prompt("And its vout");
               // vout = Number(vout);
@@ -1436,15 +1436,15 @@
               // vout2 = Number(vout2);
               var txdata = tapscript.Tx.create({
                 vin: [{
-                  txid: txid2,
-                  vout: vout2,
+                  txid: txid1,
+                  vout: vout1,
                   prevout: {
                     value: json["taker_sats"],
                     scriptPubKey: ['OP_1', tpubkey]
                   },
                 }, {
-                  txid: txid,
-                  vout: vout,
+                  txid: txid2,
+                  vout: vout2,
                   prevout: {
                     value: json["maker_sats"],
                     scriptPubKey: ['OP_1', tpubkey]
@@ -1468,15 +1468,15 @@
               //send your sigs to the taker so they can give you your sats easily
               var txdata2 = tapscript.Tx.create({
                 vin: [{
-                  txid: txid2,
-                  vout: vout2,
+                  txid: txid1,
+                  vout: vout1,
                   prevout: {
                     value: json["taker_sats"],
                     scriptPubKey: ['OP_1', tpubkey]
                   },
                 }, {
-                  txid: txid,
-                  vout: vout,
+                  txid: txid2,
+                  vout: vout2,
                   prevout: {
                     value: json["maker_sats"],
                     scriptPubKey: ['OP_1', tpubkey]
