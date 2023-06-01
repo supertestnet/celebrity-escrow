@@ -17,7 +17,7 @@
     </script>
     <title>Celebrity Escrow</title>
     <script>
-        //todo: automatically detect when the money is paid out & show the users a success message with info about who won
+        //todo: automatically detect when the money is paid out & show the users info about who won
         //todo: figure out how to ensure users can "come back to" a contract after several days or weeks by merely clicking a link (this isn't safe to do right now because the page automatically does some stuff on pageload which it shouldn't do if the contract is already finalized and you're just waiting on results)
         //todo: add an automatic refund checkbox which, if clicked, makes it so that if the escrow never responds, both users get their money back after a timelock expires
         //todo: when the maker pays, save that info so that next time he loads the screen, it doesn't briefly tell him to make a deposit
@@ -1093,11 +1093,11 @@
           <p><input class="mb-6 maker_address rounded-md px-3 py-2"></p>
           <p>Enter a btc address for the sats to go if the taker wins (they'll get to approve this address)</p>
           <p><input class="mb-6 taker_address rounded-md px-3 py-2"></p>
-          <p>Enter the amount you will put into escrow</p>
+          <p>Enter the amount of sats you will put into escrow</p>
           <p><input class="mb-6 abet rounded-md px-3 py-2"></p>
-          <p>Enter the amount the taker will put into escrow</p>
+          <p>Enter the amount of sats the taker will put into escrow</p>
           <p><input class="mb-6 bbet rounded-md px-3 py-2"></p>
-          <p>Enter a fee the escrow will get if there is a dispute (it will be deducted from the total of the maker amount + the taker amount -- the winner will receive the sum of those amounts minus the escrow fee and a mining fee)</p>
+          <p>Enter a fee (in sats) that the escrow will get if there is a dispute (it will be deducted from the total of the maker amount + the taker amount -- the winner will receive the sum of those amounts minus the escrow fee and a mining fee)</p>
           <p><input class="mb-6 efee rounded-md px-3 py-2"></p>
           <p><button class="my-4 create px-4 py-2 rounded-md bg-orange-500 text-white">Create a contract</button></p>
       </div>
@@ -1120,11 +1120,11 @@
           <p><input class="mb-6 addy rounded-md px-3 py-2" disabled></p>
           <p>Your escrow's npub</p>
           <p><input class="mb-6 epub rounded-md px-3 py-2" disabled></p>
-          <p>Amount the maker will put into escrow</p>
+          <p>Amount of sats the maker will put into escrow</p>
           <p><input class="mb-6 abet rounded-md px-3 py-2" disabled></p>
-          <p>Amount you will put into escrow</p>
+          <p>Amount of sats you will put into escrow</p>
           <p><input class="mb-6 bbet rounded-md px-3 py-2" disabled></p>
-          <p>Fee the escrow will get if there is a dispute (it will be deducted from the total of the maker amount + the taker amount -- the winner will receive the sum of those amounts minus the escrow fee and a mining fee)</p>
+          <p>Fee (in sats) that the escrow will get if there is a dispute (it will be deducted from the total of the maker amount + the taker amount -- the winner will receive the sum of those amounts minus the escrow fee and a mining fee)</p>
           <p><input class="mb-6 efee rounded-md px-3 py-2" disabled></p>
           <p>Contract terms (Note! The escrow will *only* use what's written here to decide who should get the money. Don't agree to this contract unless this field tells your escrow *exactly* how to decide.)</p>
           <p><textarea class="text rounded-md px-3 py-2" disabled></textarea></p>
