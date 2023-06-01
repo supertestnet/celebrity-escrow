@@ -20,6 +20,7 @@
         //todo: automatically detect when the money is paid out & show the users a success message with info about who won
         //todo: figure out how to ensure users can "come back to" a contract after several days or weeks by merely clicking a link (this isn't safe to do right now because the page automatically does some stuff on pageload which it shouldn't do if the contract is already finalized and you're just waiting on results)
         //todo: add an automatic refund checkbox which, if clicked, makes it so that if the escrow never responds, both users get their money back after a timelock expires
+        //todo: when the maker pays, save that info so that next time he loads the screen, it doesn't briefly tell him to make a deposit
         function pubkeyToNpub(hex) {
           return bech32.bech32.encode("npub", bech32.bech32.toWords(buffer.Buffer.from(hex, "hex")));
         }
@@ -417,9 +418,17 @@
                       target: tapleaf
                     });
                     var address = tapscript.Address.p2tr.fromPubKey(tpubkey, mempoolnet)
+                    if ( $_GET[ "accepted" ] ) {
+                        showModal( `Checking for the maker's deposit, please wait...` );
+                    }
                     await loopTilAddressReceivesMoneyTwice( address, mempoolNetwork );
                     await waitSomeSeconds( 2 );
                     var txinfo = await addressReceivedMoneyInTheseTxs( address, mempoolNetwork );
+                    txinfo.sort( ( a, b ) => {
+                        if ( BigInt( "0x" + a[ 0 ] ) == BigInt( "0x" + b[ 0 ] ) && a[ 0 ] < a[ 1 ] ) return 0;
+                        if ( BigInt( "0x" + a[ 0 ] ) < BigInt( "0x" + b[ 0 ] ) ) return 0;
+                        return 1;
+                    });
                     var txid1 = txinfo[ 0 ][ 0 ];
                     var vout1 = txinfo[ 1 ][ 0 ];
                     var amt1 = txinfo[ 2 ][ 0 ];
@@ -587,6 +596,11 @@
                       await loopTilAddressReceivesMoneyTwice( address, mempoolNetwork );
                       await waitSomeSeconds( 2 );
                       var txinfo = await addressReceivedMoneyInTheseTxs( address, mempoolNetwork );
+                      txinfo.sort( ( a, b ) => {
+                          if ( BigInt( "0x" + a[ 0 ] ) == BigInt( "0x" + b[ 0 ] ) && a[ 0 ] < a[ 1 ] ) return 0;
+                          if ( BigInt( "0x" + a[ 0 ] ) < BigInt( "0x" + b[ 0 ] ) ) return 0;
+                          return 1;
+                      });
                       var txid1 = txinfo[ 0 ][ 0 ];
                       var vout1 = txinfo[ 1 ][ 0 ];
                       var amt1 = txinfo[ 2 ][ 0 ];
@@ -676,6 +690,11 @@
                             var address = tapscript.Address.p2tr.fromPubKey(tpubkey, mempoolnet)
                             await loopTilAddressReceivesMoneyTwice( address, mempoolNetwork );
                             var txinfo = await addressReceivedMoneyInTheseTxs( address, mempoolNetwork );
+                            txinfo.sort( ( a, b ) => {
+                                if ( BigInt( "0x" + a[ 0 ] ) == BigInt( "0x" + b[ 0 ] ) && a[ 0 ] < a[ 1 ] ) return 0;
+                                if ( BigInt( "0x" + a[ 0 ] ) < BigInt( "0x" + b[ 0 ] ) ) return 0;
+                                return 1;
+                            });
                             var txid1 = txinfo[ 0 ][ 0 ];
                             var vout1 = txinfo[ 1 ][ 0 ];
                             var amt1 = txinfo[ 2 ][ 0 ];
@@ -769,6 +788,11 @@
                             var address = tapscript.Address.p2tr.fromPubKey(tpubkey, mempoolnet)
                             await loopTilAddressReceivesMoneyTwice( address, mempoolNetwork );
                             var txinfo = await addressReceivedMoneyInTheseTxs( address, mempoolNetwork );
+                            txinfo.sort( ( a, b ) => {
+                                if ( BigInt( "0x" + a[ 0 ] ) == BigInt( "0x" + b[ 0 ] ) && a[ 0 ] < a[ 1 ] ) return 0;
+                                if ( BigInt( "0x" + a[ 0 ] ) < BigInt( "0x" + b[ 0 ] ) ) return 0;
+                                return 1;
+                            });
                             var txid1 = txinfo[ 0 ][ 0 ];
                             var vout1 = txinfo[ 1 ][ 0 ];
                             var amt1 = txinfo[ 2 ][ 0 ];
@@ -1278,6 +1302,11 @@
             await loopTilAddressReceivesMoney( address, mempoolNetwork );
             await waitSomeSeconds( 2 );
             var txinfo = await addressReceivedMoneyInTheseTxs( address, mempoolNetwork );
+            txinfo.sort( ( a, b ) => {
+                if ( BigInt( "0x" + a[ 0 ] ) == BigInt( "0x" + b[ 0 ] ) && a[ 0 ] < a[ 1 ] ) return 0;
+                if ( BigInt( "0x" + a[ 0 ] ) < BigInt( "0x" + b[ 0 ] ) ) return 0;
+                return 1;
+            });
             var txid = txinfo[ 0 ][ 0 ];
             var vout = txinfo[ 1 ][ 0 ];
             var amt = txinfo[ 2 ][ 0 ];
@@ -1389,6 +1418,11 @@
               await loopTilAddressReceivesMoneyTwice( address, mempoolNetwork );
               await waitSomeSeconds( 2 );
               var txinfo = await addressReceivedMoneyInTheseTxs( address, mempoolNetwork );
+              txinfo.sort( ( a, b ) => {
+                  if ( BigInt( "0x" + a[ 0 ] ) == BigInt( "0x" + b[ 0 ] ) && a[ 0 ] < a[ 1 ] ) return 0;
+                  if ( BigInt( "0x" + a[ 0 ] ) < BigInt( "0x" + b[ 0 ] ) ) return 0;
+                  return 1;
+              });
               if ( $( '.modal div' ) ) $( '.modal div' ).click();
               var txid = txinfo[ 0 ][ 0 ];
               var vout = txinfo[ 1 ][ 0 ];
