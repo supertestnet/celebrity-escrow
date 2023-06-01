@@ -402,6 +402,7 @@
                 //if you are the taker, wait for the txid of the maker's deposit
                 //and then sign the tx sending the money to you and send your sigs to him
                 if ( $_GET[ "role" ] == "taker" ) {
+                    if ( $( '.modal' ).innerHTML.toLowerCase().includes( "checking for the maker's deposit" ) ) $( '.modal div' ).click()
                     var taker_address = sessionStorage[ "taker_address" ];
                     var pubkey = "abababababababababababababababababababababababababababababababab";
                     var contract_hash = bytesToHex( bitcoinjs.crypto.sha256( json[ "contract_text" ] ) );
@@ -419,9 +420,6 @@
                       target: tapleaf
                     });
                     var address = tapscript.Address.p2tr.fromPubKey(tpubkey, mempoolnet)
-                    if ( $_GET[ "accepted" ] ) {
-                        showModal( `Checking for the maker's deposit, please wait...` );
-                    }
                     await loopTilAddressReceivesMoneyTwice( address, mempoolNetwork );
                     await waitSomeSeconds( 2 );
                     var txinfo = await addressReceivedMoneyInTheseTxs( address, mempoolNetwork );
@@ -1223,6 +1221,7 @@
         if ($_GET["role"] == "taker") {
             var takertime = async () => {
                 if ( $_GET[ "accepted" ] ) {
+                    showModal( `Checking for the maker's deposit, please wait...` );
                     $( '.disappearing_maker_won' ).style.display = "inline";
                     $( '.taker_form_part_1' ).style.display = "none";
                     $$( '.open_dispute' )[ 1 ].style.display = "inline";
