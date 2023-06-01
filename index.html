@@ -1389,6 +1389,7 @@
               await loopTilAddressReceivesMoneyTwice( address, mempoolNetwork );
               await waitSomeSeconds( 2 );
               var txinfo = await addressReceivedMoneyInTheseTxs( address, mempoolNetwork );
+              if ( $( '.modal div' ) ) $( '.modal div' ).click();
               var txid = txinfo[ 0 ][ 0 ];
               var vout = txinfo[ 1 ][ 0 ];
               var amt = txinfo[ 2 ][ 0 ];
