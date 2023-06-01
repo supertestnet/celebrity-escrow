@@ -561,8 +561,8 @@
                       var rawtx = tapscript.Tx.encode(txdata);
                       var conf = confirm( "Are you sure you want to let the maker win?" );
                       if ( !conf ) return;
-                      var txid = await pushBTCpmt( rawtx, mempoolNetwork );
-                      showModal( `Your transaction was a success! Here is your txid: https://mempool.space${mempoolNetwork}/tx/${txid}` );
+                      var txid = await pushBTCpmt( rawtx.hex, mempoolNetwork );
+                      showModal( `Your transaction was a success! Here is your txid: https://mempool.space/${mempoolNetwork}tx/${txid}` );
                       console.log(rawtx.hex, "sighash for vin 0:", tapscript.Signer.taproot.hash( txdata, 0, {throws: true} ), "sighash for vin 1:", tapscript.Signer.taproot.hash( txdata, 1, {throws: true} ) );
                     }
                 }
@@ -641,8 +641,8 @@
                       var rawtx = tapscript.Tx.encode(txdata);
                       var conf = confirm( "Are you sure you want to let the taker win?" );
                       if ( !conf ) return;
-                      var txid = await pushBTCpmt( rawtx, mempoolNetwork );
-                      showModal( `Your transaction was a success! Here is your txid: https://mempool.space${mempoolNetwork}/tx/${txid}` );
+                      var txid = await pushBTCpmt( rawtx.hex, mempoolNetwork );
+                      showModal( `Your transaction was a success! Here is your txid: https://mempool.space/${mempoolNetwork}tx/${txid}` );
                       console.log(rawtx.hex, "sighash for vin 0:", tapscript.Signer.taproot.hash( txdata, 0, {throws: true} ), "sighash for vin 1:", tapscript.Signer.taproot.hash( txdata, 1, {throws: true} ) );
                     }
                 }
@@ -738,8 +738,8 @@
                             var rawtx = tapscript.Tx.encode(txdata);
                             var conf = confirm( "Are you sure you want to let the maker win?" );
                             if ( !conf ) return;
-                            var txid = await pushBTCpmt( rawtx, mempoolNetwork );
-                            showModal( `Your transaction was a success! Here is your txid: https://mempool.space${mempoolNetwork}/tx/${txid}` );
+                            var txid = await pushBTCpmt( rawtx.hex, mempoolNetwork );
+                            showModal( `Your transaction was a success! Here is your txid: https://mempool.space/${mempoolNetwork}tx/${txid}` );
                             console.log( rawtx.hex );
                         }
                     } else {
@@ -833,7 +833,7 @@
                             var conf = confirm( "Are you sure you want to let the taker win?" );
                             if ( !conf ) return;
                             var txid = await pushBTCpmt( rawtx.hex, mempoolNetwork );
-                            showModal( `Your transaction was a success! Here is your txid: https://mempool.space${mempoolNetwork}/tx/${txid}` );
+                            showModal( `Your transaction was a success! Here is your txid: https://mempool.space/${mempoolNetwork}tx/${txid}` );
                             console.log( JSON.parse( event.content ) );
                         }
                     }
