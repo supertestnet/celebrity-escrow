@@ -17,8 +17,6 @@
   </script>
   <title>Celebrity Escrow</title>
   <script>
-    //todo: broadcast the transactions when the users click the buttons
-    //todo: hide the "maker won" and "taker won" buttons from the taker and the maker until the contract is ready
     //todo: automatically detect when each user's money arrives instead of prompting them to paste in a txid + vout
     //todo: automatically detect when the money is paid out & show the users a success message with info about who won
     //todo: figure out how to ensure users can "come back to" a contract after several days or weeks by merely clicking a link (this isn't safe to do right now because the page automatically does some stuff on pageload which it shouldn't do if the contract is already finalized and you're just waiting on results)
@@ -139,6 +137,9 @@
     .open_dispute {
         display: none;
     }
+    .disappearing_maker_won, .disappearing_taker_won {
+        display: none;
+    }
 
     @media screen and (max-width: 600px) {}
   </style>
@@ -151,6 +152,7 @@
     for (var key of url_keys) $_GET[key] = url_params.get(key);
   </script>
   <script>
+    var mempoolNetwork = ""; //testnet: "testnet/" | signet: "signet/"
     if ( localStorage.privkey && $_GET[ "role" ] == "taker" && !$_GET[ "privkey" ] ) {
         var url = window.location.href + "&privkey=" + localStorage.privkey;
         window.location.href = url;
@@ -272,6 +274,46 @@
         $( ".modal" ).innerHTML += `<div style="overflow-y: scroll; max-height: 80vh; margin-top: 1.5rem;">${content}</div>`;
         $( ".black-bg" ).style.display = "block";
         $( ".modal" ).style.display = "block";
+    }
+    async function postData( url, json, content_type = "", apikey = "" ) {
+        var rtext = "";
+        function inner_post( url, json, content_type = "", apikey = "" ) {
+            var xhttp = new XMLHttpRequest();
+            xhttp.open( "POST", url, true );
+            if ( content_type ) {
+                xhttp.setRequestHeader( `Content-Type`, content_type );
+            }
+            if ( apikey ) {
+                xhttp.setRequestHeader( `X-Api-Key`, apikey );
+            }
+            xhttp.send( json );
+            return xhttp;
+        }
+        var data = inner_post( url, json, content_type, apikey );
+        data.onerror = function( e ) {
+            rtext = "error";
+        }
+        async function isResponseReady() {
+            return new Promise( function( resolve, reject ) {
+                if ( rtext == "error" ) {
+                    resolve( rtext );
+                }
+                if ( !data.responseText || data.readyState != 4 ) {
+                    setTimeout( async function() {
+                        var msg = await isResponseReady();
+                        resolve( msg );
+                    }, 50 );
+                } else {
+                    resolve( data.responseText );
+                }
+            });
+        }
+        var returnable = await isResponseReady();
+        return returnable;
+    }
+    async function pushBTCpmt( rawtx, network ) {
+        var txid = await postData( "https://mempool.space/" + network + "api/tx", rawtx );
+        return txid;
     }
   </script>
     <script>
@@ -492,8 +534,11 @@
                       }).hex;
                       txdata.vin[0].witness = ["", sig2, sig1, script, cblock];
                       txdata.vin[1].witness = ["", sig4, sig3, script, cblock];
-                      // todo: broadcast the tx
                       var rawtx = tapscript.Tx.encode(txdata);
+                      var conf = confirm( "Are you sure you want to let the maker win?" );
+                      if ( !conf ) return;
+                      var txid = await pushBTCpmt( rawtx, mempoolNetwork );
+                      showModal( `Your transaction was a success! Here is your txid: https://mempool.space${mempoolNetwork}/tx/${txid}` );
                       console.log(rawtx.hex, "sighash for vin 0:", tapscript.Signer.taproot.hash( txdata, 0, {throws: true} ), "sighash for vin 1:", tapscript.Signer.taproot.hash( txdata, 1, {throws: true} ) );
                     }
                 }
@@ -554,8 +599,11 @@
                       var sig4 = decrypt( privKey, $_GET[ "taker" ], json[ "missing_sigs" ][ 1 ] );
                       txdata.vin[0].witness = ["", sig2, sig1, script, cblock];
                       txdata.vin[1].witness = ["", sig4, sig3, script, cblock];
-                      // todo: broadcast the tx
                       var rawtx = tapscript.Tx.encode(txdata);
+                      var conf = confirm( "Are you sure you want to let the taker win?" );
+                      if ( !conf ) return;
+                      var txid = await pushBTCpmt( rawtx, mempoolNetwork );
+                      showModal( `Your transaction was a success! Here is your txid: https://mempool.space${mempoolNetwork}/tx/${txid}` );
                       console.log(rawtx.hex, "sighash for vin 0:", tapscript.Signer.taproot.hash( txdata, 0, {throws: true} ), "sighash for vin 1:", tapscript.Signer.taproot.hash( txdata, 1, {throws: true} ) );
                     }
                 }
@@ -634,8 +682,11 @@
                             console.log( "sigs:", sig1, sig2 );
                             txdata.vin[0].witness = [sig1.hex, "", decrypt( privKey, pubkeyFromNpub( json[ "maker_pub" ] ), JSON.parse( event.content )[ 2 ] ), script, cblock];
                             txdata.vin[1].witness = [sig2.hex, "", decrypt( privKey, pubkeyFromNpub( json[ "maker_pub" ] ), JSON.parse( event.content )[ 3 ] ), script, cblock];
-                            // todo: broadcast the tx
                             var rawtx = tapscript.Tx.encode(txdata);
+                            var conf = confirm( "Are you sure you want to let the maker win?" );
+                            if ( !conf ) return;
+                            var txid = await pushBTCpmt( rawtx, mempoolNetwork );
+                            showModal( `Your transaction was a success! Here is your txid: https://mempool.space${mempoolNetwork}/tx/${txid}` );
                             console.log( rawtx.hex );
                         }
                     } else {
@@ -710,9 +761,12 @@
                             console.log( "sigs:", sig1, sig2 );
                             txdata.vin[0].witness = [sig1.hex, decrypt( privKey, $_GET[ "taker" ], JSON.parse( event.content )[ 3 ] ), "", script, cblock];
                             txdata.vin[1].witness = [sig2.hex, decrypt( privKey, $_GET[ "taker" ], JSON.parse( event.content )[ 4 ] ), "", script, cblock];
-                            // todo: broadcast the tx
                             var rawtx = tapscript.Tx.encode(txdata);
                             console.log( rawtx.hex );
+                            var conf = confirm( "Are you sure you want to let the taker win?" );
+                            if ( !conf ) return;
+                            var txid = await pushBTCpmt( rawtx.hex, mempoolNetwork );
+                            showModal( `Your transaction was a success! Here is your txid: https://mempool.space${mempoolNetwork}/tx/${txid}` );
                             console.log( JSON.parse( event.content ) );
                         }
                     }
@@ -840,7 +894,7 @@
           <p><input class="mb-6 efee rounded-md px-3 py-2"></p>
           <p><button class="my-4 create px-4 py-2 rounded-md bg-orange-500 text-white">Create a contract</button></p>
       </div>
-      <p><button class="taker_won px-4 py-2 rounded-md bg-orange-500 text-white">Taker won</button> <button class="open_dispute px-4 py-2 rounded-md bg-orange-500 text-white">Open dispute</button></p>
+      <p><button class="taker_won disappearing_taker_won px-4 py-2 rounded-md bg-orange-500 text-white">Taker won</button> <button class="open_dispute px-4 py-2 rounded-md bg-orange-500 text-white">Open dispute</button></p>
     </div>
     <div class="taker_form">
       <div style="display: flex; justify-content: center; align-items: center; flex-wrap: wrap; text-align: center;">
@@ -869,7 +923,7 @@
           <p><textarea class="text rounded-md px-3 py-2" disabled></textarea></p>
           <p><button class="approve px-4 py-2 rounded-md bg-blue-500 text-white">Approve contract</button></p>
       </div>
-      <p><button class="maker_won px-4 py-2 rounded-md bg-blue-500 text-white">Maker won</button> <button class="open_dispute px-4 py-2 rounded-md bg-blue-500 text-white">Open dispute</button></p>
+      <p><button class="maker_won disappearing_maker_won px-4 py-2 rounded-md bg-blue-500 text-white">Maker won</button> <button class="open_dispute px-4 py-2 rounded-md bg-blue-500 text-white">Open dispute</button></p>
     </div>
     <div class="escrow_form">
       <p style="margin: 1rem 0;">
@@ -960,6 +1014,7 @@
         if ($_GET["role"] == "taker") {
             var takertime = async () => {
               if ( $_GET[ "accepted" ] ) {
+                $( '.disappearing_maker_won' ).style.display = "inline";
                 $( '.taker_form_part_1' ).style.display = "none";
                 $$( '.open_dispute' )[ 1 ].style.display = "inline";
                 $$( '.open_dispute' )[ 1 ].onclick = () => {
@@ -1043,7 +1098,7 @@
             }
             var signedEvent = await getSignedEvent(event, privKey);
             socket.send(JSON.stringify([ "EVENT", signedEvent ]));
-            await waitSomeSeconds( 30 );
+            await waitSomeSeconds( 3 );
             var url = window.location.href + "&accepted=true";
             window.location.href = url;
         }
@@ -1094,6 +1149,7 @@
               if ( !$_GET[ "contract" ] ) return;
               $( '.maker_form_part_1' ).style.display = "none";
               $( '.maker_form_part_2' ).style.display = "none";
+              $( '.disappearing_taker_won' ).style.display = "inline";
               $$( '.open_dispute' )[ 0 ].style.display = "inline";
               $$( '.open_dispute' )[ 0 ].onclick = () => {
                   var url = window.location.protocol + "//" + window.location.hostname + window.location.pathname + "?taker=" + $_GET[ "taker" ] + "&contract=" + $_GET[ "contract" ] + "&role=escrow&decryption_key=" + $_GET[ "decryption_key" ];
