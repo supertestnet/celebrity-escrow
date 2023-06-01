@@ -1361,6 +1361,9 @@
             var makertime = async () => {
               $( '.desc_of_celebrity_escrow' ).style.display = "none";
               $( 'hr' ).style.display = "none";
+              socket = new WebSocket( relay );
+              socket.addEventListener( "open", openConnection );
+              socket.addEventListener( "message", handleMessage );
               var json = await getNote( "json" );
               var json = JSON.parse( sessionStorage.json );
               $$( '.minfo' )[ 0 ].style.display = "inline-block";
@@ -1383,9 +1386,6 @@
                   var content = `<p>Please send <a style="color: blue; text-decoration: underline;" href="${url}" target="_blank">this link</a> to your escrow and await their reply</p>`;
                   showModal( content );
               }
-              socket = new WebSocket( relay );
-              socket.addEventListener( "open", openConnection );
-              socket.addEventListener( "message", handleMessage );
               //previously I (the maker) created a subscription to find the taker's reply to this event
               //now that I have it I should get their pubkey and create the bitcoin address
               var contract_hash = bytesToHex( bitcoinjs.crypto.sha256( json[ "contract_text" ] ) );
