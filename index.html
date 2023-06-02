@@ -1241,7 +1241,7 @@
     </div>
     <script>
         var setFee = async () => {
-            var feerates = await getThreeFeeRates( "" );
+            var feerates = await getThreeFeeRates( mempoolNetwork );
             var feerate = feerates[ 1 ] * 3;
             sessionStorage.fee = String( feerate );
             $( '.mfee' ).value = String( feerate );
