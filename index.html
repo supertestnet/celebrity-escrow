@@ -1412,6 +1412,8 @@
                 $$('.abet')[1].value = json["maker_sats"] + " sats";
                 $$('.bbet')[1].value = json["taker_sats"] + " sats";
                 $$('.efee')[1].value = json["escrow_sats"] + " sats";
+                await getNote( "fee" );
+                await getNote( "bitcoin_price" );
                 var mfee_dollars = await satsToDollars( json["mining_fee"] );
                 mfee_dollars = mfee_dollars.toFixed( 2 );
                 if ( json["mining_fee"] / 300 < Number( sessionStorage.fee ) * 3 ) $$( '.fee_warning' )[ 1 ].style.display = "block";
