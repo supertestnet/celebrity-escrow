@@ -1416,7 +1416,7 @@
                 await getNote( "bitcoin_price" );
                 var mfee_dollars = await satsToDollars( json["mining_fee"] );
                 mfee_dollars = mfee_dollars.toFixed( 2 );
-                if ( json["mining_fee"] / 300 < Number( sessionStorage.fee ) * 3 ) $$( '.fee_warning' )[ 1 ].style.display = "block";
+                if ( json["mining_fee"] / 300 < Number( sessionStorage.fee ) * 300 ) $$( '.fee_warning' )[ 1 ].style.display = "block";
                 $( '.current_rates' ).innerText = sessionStorage.fee;
                 $( '.rec_rate' ).innerText = Number( sessionStorage.fee ) * 300;
                 $( '.ndis' ).value = String( json[ "maker_sats" ] + json[ "taker_sats" ] - json[ "mining_fee" ] ) + " sats";
