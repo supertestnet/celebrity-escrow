@@ -175,7 +175,7 @@
           var ephemeral_pub = nobleSecp256k1.getPublicKey( ephemeral_priv, true ).substring( 2 );
           sessionStorage.ephemeral_priv = ephemeral_priv;
           var event = {
-              "content"    : encrypt( privKey, ephemeral_pub, JSON.stringify( {maker_sats: json.maker_sats,taker_sats: json.taker_sats,escrow_sats: json.escrow_sats,contract_text: json.contract_text, escrow_pub: json.escrow_pub, maker_pub: json.maker_pub, maker_address: json.maker_address, taker_address: json.taker_address, maker_nym: json.maker_nym, maker_pic: json.maker_pic, taker_nym: json.taker_nym, taker_pic: json.taker_pic, escrow_nym: json.escrow_nym, escrow_pic: json.escrow_pic} ) ),
+              "content"    : encrypt( privKey, ephemeral_pub, JSON.stringify( {maker_sats: json.maker_sats,taker_sats: json.taker_sats,escrow_sats: json.escrow_sats,contract_text: json.contract_text, escrow_pub: json.escrow_pub, maker_pub: json.maker_pub, maker_address: json.maker_address, taker_address: json.taker_address, maker_nym: json.maker_nym, maker_pic: json.maker_pic, taker_nym: json.taker_nym, taker_pic: json.taker_pic, escrow_nym: json.escrow_nym, escrow_pic: json.escrow_pic, mining_fee: json.mining_fee} ) ),
               "created_at" : Math.floor( Date.now() / 1000 ),
               "kind"       : 3333,
               "tags"       : [ [ "p", pubkeyFromNpub( json.maker_pub ) ], [ "p", json.escrow_pub ] ],
@@ -462,7 +462,7 @@
                         },
                       }],
                       vout: [{
-                        value: json["maker_sats"] + json["taker_sats"] - 500,
+                        value: json["maker_sats"] + json["taker_sats"] - json[ "mining_fee" ],
                         // bcrt1q6zpf4gefu4ckuud3pjch563nm7x27u4ruahz3y
                         scriptPubKey: tapscript.Address.toScriptPubKey(taker_address)
                       }]
@@ -494,7 +494,7 @@
                       }],
                       vout: [{
                         //subtract 500 (the mining fee) and 546 (for vout 1 to exist) and the escrow's fee
-                        value: json["maker_sats"] + json["taker_sats"] - ( 500 + 546 + json["escrow_sats"] ),
+                        value: json["maker_sats"] + json["taker_sats"] - ( json[ "mining_fee" ] + 546 + json["escrow_sats"] ),
                         // bcrt1q6zpf4gefu4ckuud3pjch563nm7x27u4ruahz3y
                         scriptPubKey: tapscript.Address.toScriptPubKey(taker_address)
                       },{
@@ -550,7 +550,7 @@
                           },
                         }],
                         vout: [{
-                          value: json["maker_sats"] + json["taker_sats"] - 500,
+                          value: json["maker_sats"] + json["taker_sats"] - json[ "mining_fee" ],
                           // bcrt1q6zpf4gefu4ckuud3pjch563nm7x27u4ruahz3y
                           scriptPubKey: tapscript.Address.toScriptPubKey(json.maker_address)
                         }]
@@ -635,7 +635,7 @@
                           },
                         }],
                         vout: [{
-                          value: json["maker_sats"] + json["taker_sats"] - 500,
+                          value: json["maker_sats"] + json["taker_sats"] - json[ "mining_fee" ],
                           // bcrt1q6zpf4gefu4ckuud3pjch563nm7x27u4ruahz3y
                           scriptPubKey: tapscript.Address.toScriptPubKey( decrypt( $_GET[ "decryption_key" ], $_GET[ "taker" ], json.missing_sigs[ 2 ] ) )
                         }]
@@ -729,7 +729,7 @@
                               }],
                               vout: [{
                                 //subtract 500 (the mining fee) and 546 (for vout 1 to exist) and the escrow's fee
-                                value: json["maker_sats"] + json["taker_sats"] - ( 500 + 546 + json["escrow_sats"] ),
+                                value: json["maker_sats"] + json["taker_sats"] - ( json[ "mining_fee" ] + 546 + json["escrow_sats"] ),
                                 // bcrt1q6zpf4gefu4ckuud3pjch563nm7x27u4ruahz3y
                                 scriptPubKey: tapscript.Address.toScriptPubKey(json.maker_address)
                               },{
@@ -827,7 +827,7 @@
                               }],
                               vout: [{
                                 //subtract 500 (the mining fee) and 546 (for vout 1 to exist) and the escrow's fee
-                                value: json["maker_sats"] + json["taker_sats"] - ( 500 + 546 + json["escrow_sats"] ),
+                                value: json["maker_sats"] + json["taker_sats"] - ( json[ "mining_fee" ] + 546 + json["escrow_sats"] ),
                                 // bcrt1q6zpf4gefu4ckuud3pjch563nm7x27u4ruahz3y
                                 scriptPubKey: tapscript.Address.toScriptPubKey( decrypt( $_GET[ "decryption_key" ], $_GET[ "taker" ], JSON.parse( event.content )[ 2 ] ) )
                               },{
@@ -1054,12 +1054,74 @@
                 resolve( returnable );
             });
         }
-    </script>
-    <script>
+        async function getThreeFeeRates( network ) {
+            var fees = await getData("https://mempool.space/" + network + "api/v1/fees/recommended");
+            fees = JSON.parse(fees);
+            var array = [ fees["minimumFee"], fees["hourFee"], fees["fastestFee"] ];
+            return array;
+        }
         function waitSomeSeconds(num) {
             var num = num.toString() + "000";
             num = Number(num);
             return new Promise(resolve => setTimeout(resolve, num));
+        }
+        async function getBitcoinPriceFromCoinbase() {
+                var data = await getData( "https://api.coinbase.com/v2/prices/BTC-USD/spot" );
+                if ( data == "error" ) return 0;
+                var json = JSON.parse( data );
+                var price = json[ "data" ][ "amount" ];
+                return price;
+        }
+
+        async function getBitcoinPriceFromKraken() {
+                var data = await getData( "https://api.kraken.com/0/public/Ticker?pair=XBTUSD" );
+                if ( data == "error" ) return 0;
+                var json = JSON.parse( data );
+                var price = json[ "result" ][ "XXBTZUSD" ][ "a" ][ 0 ];
+                return price;
+        }
+
+        async function getBitcoinPriceFromCoindesk() {
+                var data = await getData( "https://api.coindesk.com/v1/bpi/currentprice.json" );
+                if ( data == "error" ) return 0;
+                var json = JSON.parse( data );
+                var price = json[ "bpi" ][ "USD" ][ "rate_float" ];
+                return price;
+        }
+
+        async function getBitcoinPriceFromGemini() {
+                var data = await getData( "https://api.gemini.com/v2/ticker/BTCUSD" );
+                if ( data == "error" ) return 0;
+                var json = JSON.parse( data );
+                var price = json[ "bid" ];
+                return price;
+        }
+
+        async function getBitcoinPriceFromCoinGecko() {
+                var data = await getData( "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd&precision=2" );
+                if ( data == "error" ) return 0;
+                var json = JSON.parse( data );
+                var price = json[ "bitcoin" ][ "usd" ];
+                return price;
+        }
+
+        async function getBitcoinPrice() {
+            var prices = [];
+            var cbprice = await getBitcoinPriceFromCoinbase();
+            var kprice = await getBitcoinPriceFromKraken();
+            var cdprice = await getBitcoinPriceFromCoindesk();
+            var gprice = await getBitcoinPriceFromGemini();
+            var cgprice = await getBitcoinPriceFromCoinGecko();
+            prices.push( Number( cbprice ), Number( kprice ), Number( cdprice ), Number( gprice ), Number( cgprice ) );
+            prices.sort();
+            console.log( prices );
+            return prices[ 2 ];
+        }
+        async function satsToDollars( sats ) {
+            if ( sats >= 100000000 ) sats = sats * 10;
+            var bitcoin_price = sessionStorage.bitcoin_price;
+            var value_in_dollars = Number( String( sats ).padStart( 8, "0" ).slice( 0,-9 ) + "." + String( sats ).padStart( 8, "0" ).slice( -9 ) ) * bitcoin_price;
+            return value_in_dollars;
         }
     </script>
 </head>
@@ -1094,11 +1156,19 @@
           <p>Enter a btc address for the sats to go if the taker wins (they'll get to approve this address)</p>
           <p><input class="mb-6 taker_address rounded-md px-3 py-2"></p>
           <p>Enter the amount of sats you will put into escrow</p>
-          <p><input class="mb-6 abet rounded-md px-3 py-2"></p>
+          <p><input type="number" class="mb-6 abet rounded-md px-3 py-2"></p>
+          <div style="display: none; font-size: 75%; margin-bottom: 1rem;">Equivalent dollar amount: $<div style="display: inline;font-size: 100%;" class="abet_dollars">loading...</div></div>
           <p>Enter the amount of sats the taker will put into escrow</p>
-          <p><input class="mb-6 bbet rounded-md px-3 py-2"></p>
+          <p><input type="number" class="mb-6 bbet rounded-md px-3 py-2"></p>
+          <div style="display: none; font-size: 75%; margin-bottom: 1rem;">Equivalent dollar amount: $<div style="display: inline;font-size: 100%;" class="bbet_dollars">loading...</div></div>
           <p>Enter a fee (in sats) that the escrow will get if there is a dispute (it will be deducted from the total of the maker amount + the taker amount -- the winner will receive the sum of those amounts minus the escrow fee and a mining fee)</p>
-          <p><input class="mb-6 efee rounded-md px-3 py-2"></p>
+          <p><input type="number" class="mb-6 efee rounded-md px-3 py-2"></p>
+          <div style="display: none; font-size: 75%; margin-bottom: 1rem;">Equivalent dollar amount: $<div style="display: inline;font-size: 100%;" class="efee_dollars">loading...</div></div>
+          <p>Mining feerate (in sats per byte)</p>
+          <p><input type="number" class="mb-6 mfee rounded-md px-3 py-2" value="loading..."></p>
+          <div style="font-size: 75%; margin-bottom: 1rem;">Dollar cost of fees (at 300 bytes per tx): $<div style="display: inline;font-size: 100%;" class="fee_dollars">loading...</div></div>
+          <div style="font-size: 75%; margin-bottom: 1rem;">Current feerate: <div style="display: inline;font-size: 100%;" class="fee_sats">loading...</div> sats per byte</div>
+          <div class="fee_warning" style="display: none; margin-bottom: 1rem;padding: 1rem;border: 5px solid red;background-color: pink;color: black;">This fee is less than 3x the going feerate. A feerate of 3x the going rate is recommended to help ensure the transaction will go through even if fees rise while the contract is pending resolution. If you use a low fee, your contract may be difficult to resolve and the resolution transaction may not make it into the mempool. Therefore your counterparty will be warned if you set a fee less than 3x the going rate.</div>
           <p><button class="my-4 create px-4 py-2 rounded-md bg-orange-500 text-white">Create a contract</button></p>
       </div>
       <p><button class="taker_won disappearing_taker_won px-4 py-2 rounded-md bg-orange-500 text-white">Taker won</button> <button class="open_dispute px-4 py-2 rounded-md bg-orange-500 text-white">Open dispute</button></p>
@@ -1120,12 +1190,23 @@
           <p><input class="mb-6 addy rounded-md px-3 py-2" disabled></p>
           <p>Your escrow's npub</p>
           <p><input class="mb-6 epub rounded-md px-3 py-2" disabled></p>
-          <p>Amount of sats the maker will put into escrow</p>
+          <p>Amount the maker will put into escrow</p>
           <p><input class="mb-6 abet rounded-md px-3 py-2" disabled></p>
-          <p>Amount of sats you will put into escrow</p>
+          <p>Amount you will put into escrow</p>
           <p><input class="mb-6 bbet rounded-md px-3 py-2" disabled></p>
-          <p>Fee (in sats) that the escrow will get if there is a dispute (it will be deducted from the total of the maker amount + the taker amount -- the winner will receive the sum of those amounts minus the escrow fee and a mining fee)</p>
+          <p>Fee the escrow will get if there is a dispute (it will be deducted from the total of the maker amount + the taker amount -- the winner will receive the sum of those amounts minus the escrow fee and a mining fee)</p>
           <p><input class="mb-6 efee rounded-md px-3 py-2" disabled></p>
+          <p>Mining fee</p>
+          <p><input class="mb-6 mfee rounded-md px-3 py-2" disabled></p>
+          <div class="fee_warning" style="display: none; margin-bottom: 1rem;padding: 1rem;border: 5px solid red;background-color: pink;color: black;">This fee is less than 3x the going feerate. The recommended fee for this type of transaction, at current feerates of <span class="current_rates" style="color: black;">loading...</span> sats per byte, is <span class="rec_rate" style="color: black;">loading...</span> sats, which is 3x the going rate. Such a high feerate is recommended to help ensure the transaction will go through even if fees rise while the contract is pending resolution. If you use a low fee, your contract may be difficult to resolve and the resolution transaction may not make it into the mempool. Only accept this contract if you are okay with this risk.</div>
+          <p>Amount you can get with no dispute</p>
+          <p><input class="mb-6 ndis rounded-md px-3 py-2" disabled></p>
+          <p>Amount you can get after a dispute</p>
+          <p><input class="mb-6 ydis rounded-md px-3 py-2" disabled></p>
+          <p>Profit if you win with no dispute</p>
+          <p><input class="mb-6 npro rounded-md px-3 py-2" disabled></p>
+          <p>Profit if you win after a dispute</p>
+          <p><input class="mb-6 ypro rounded-md px-3 py-2" disabled></p>
           <p>Contract terms (Note! The escrow will *only* use what's written here to decide who should get the money. Don't agree to this contract unless this field tells your escrow *exactly* how to decide.)</p>
           <p><textarea class="text rounded-md px-3 py-2" disabled></textarea></p>
           <p><button class="approve px-4 py-2 rounded-md bg-blue-500 text-white">Approve contract</button></p>
@@ -1159,6 +1240,73 @@
       <p><textarea class="text rounded-md px-3 py-2" disabled></textarea></p>
     </div>
     <script>
+        var setFee = async () => {
+            var feerates = await getThreeFeeRates( "" );
+            var feerate = feerates[ 1 ] * 3;
+            sessionStorage.fee = String( feerate );
+            $( '.mfee' ).value = String( feerate );
+            $( '.fee_sats' ).innerText = feerates[ 1 ];
+            var price = await getBitcoinPrice();
+            sessionStorage.bitcoin_price = String( price );
+            $( '.fee_dollars' ).innerText = Number( await satsToDollars( $( '.mfee' ).value * 300 ) ).toFixed( 2 );
+            if ( $( '.abet' ).value ) $( '.abet_dollars' ).parentElement.style.display = "block";
+            if ( $( '.bbet' ).value ) $( '.bbet_dollars' ).parentElement.style.display = "block";
+            if ( $( '.efee' ).value ) $( '.efee_dollars' ).parentElement.style.display = "block";
+        }
+        setFee();
+        $( '.abet' ).onchange = async () => {
+            if ( sessionStorage.bitcoin_price ) {
+                if ( $( '.abet' ).value ) $( '.abet_dollars' ).parentElement.style.display = "block";
+                $( '.abet_dollars' ).innerText = Number( await satsToDollars( Number( $( '.abet' ).value ) ) ).toFixed( 2 );
+            }
+        }
+        $( '.abet' ).onkeyup = async () => {
+            if ( sessionStorage.bitcoin_price ) {
+                if ( $( '.abet' ).value ) $( '.abet_dollars' ).parentElement.style.display = "block";
+                $( '.abet_dollars' ).innerText = Number( await satsToDollars( Number( $( '.abet' ).value ) ) ).toFixed( 2 );
+            }
+        }
+        $( '.bbet' ).onchange = async () => {
+            if ( sessionStorage.bitcoin_price ) {
+                if ( $( '.bbet' ).value ) $( '.bbet_dollars' ).parentElement.style.display = "block";
+                $( '.bbet_dollars' ).innerText = Number( await satsToDollars( Number( $( '.bbet' ).value ) ) ).toFixed( 2 );
+            }
+        }
+        $( '.bbet' ).onkeyup = async () => {
+            if ( sessionStorage.bitcoin_price ) {
+                if ( $( '.bbet' ).value ) $( '.bbet_dollars' ).parentElement.style.display = "block";
+                $( '.bbet_dollars' ).innerText = Number( await satsToDollars( Number( $( '.bbet' ).value ) ) ).toFixed( 2 );
+            }
+        }
+        $( '.efee' ).onchange = async () => {
+            if ( sessionStorage.bitcoin_price ) {
+                if ( $( '.efee' ).value ) $( '.efee_dollars' ).parentElement.style.display = "block";
+                $( '.efee_dollars' ).innerText = Number( await satsToDollars( Number( $( '.efee' ).value ) ) ).toFixed( 2 );
+            }
+        }
+        $( '.efee' ).onkeyup = async () => {
+            if ( sessionStorage.bitcoin_price ) {
+                if ( $( '.efee' ).value ) $( '.efee_dollars' ).parentElement.style.display = "block";
+                $( '.efee_dollars' ).innerText = Number( await satsToDollars( Number( $( '.efee' ).value ) ) ).toFixed( 2 );
+            }
+        }
+        $( '.mfee' ).onchange = async () => {
+            if ( Number( $( '.mfee' ).value ) < Number( sessionStorage.fee ) ) {
+                $( '.fee_warning' ).style.display = "block";
+            } else {
+                $( '.fee_warning' ).style.display = "none";
+            }
+            if ( sessionStorage.bitcoin_price ) $( '.fee_dollars' ).innerText = Number( await satsToDollars( Number( $( '.mfee' ).value ) * 300 ) ).toFixed( 2 );
+        }
+        $( '.mfee' ).onkeyup = async () => {
+            if ( Number( $( '.mfee' ).value ) < Number( sessionStorage.fee ) ) {
+                $( '.fee_warning' ).style.display = "block";
+            } else {
+                $( '.fee_warning' ).style.display = "none";
+            }
+            if ( sessionStorage.bitcoin_price ) $( '.fee_dollars' ).innerText = Number( await satsToDollars( Number( $( '.mfee' ).value ) * 300 ) ).toFixed( 2 );
+        }
+
         $( '.mpub' ).onkeyup = () => {
             getCounterpartyInfo( $( '.mpub' ).value, "maker" );
         }
@@ -1170,6 +1318,16 @@
         }
         if ( !$_GET[ "role" ] ) $('.asec').value = privkeyToNsec( bytesToHex( nobleSecp256k1.utils.randomPrivateKey() ) );
         $('.create').onclick = async () => {
+            var return_after_max_fees = Number( $( '.abet' ).value ) + Number(  $( '.bbet' ).value ) - ( ( Number( $( '.mfee' ).value ) * 300 ) + Number( $( '.efee' ).value ) );
+            var return_after_low_fees = Number( $( '.abet' ).value ) + Number(  $( '.bbet' ).value ) - ( Number( $( '.mfee' ).value ) * 300 );
+            if ( return_after_max_fees >= 0 ) var warning = `and it is below bitcoin's dust limit of 546 sats`; else var warning = `and it is a negative amount, which is impossible in bitcoin`;
+            if ( return_after_max_fees < 546 ) {
+                alert( `Oh no! The escrowed amount for this contract is too small to cover all the potential fees.\n\nTotal escrowed amount: ${Number( $( '.abet' ).value ) + Number(  $( '.bbet' ).value )} sats\n\nFeerate: ${Number( $( '.mfee' ).value )} sats per byte\n\nAverage number of bytes per tx: 300\n\nTotal approx. mining fee: 300 * ${Number( $( '.mfee' ).value )} = ${Number( $( '.mfee' ).value ) * 300} sats\n\nPotential escrow fee (if there is a dispute): ${$( '.efee' ).value} sats\n\nTotal potential fees: ${( ( Number( $( '.mfee' ).value ) * 300 ) + Number( $( '.efee' ).value ) )} sats\n\nSubtracted from total escrowed amount: ${return_after_max_fees} sats\n\nThat is what you would get if you win after a dispute, ${warning}. Please increase your escrow amounts and/or lower your fees to compensate.` );
+                return;
+            }
+            var conf = confirm( `Click ok if you are sure you want to create this contract. Here is the breakdown:\n\nAmount that will enter the contract: ${Number( $( '.abet' ).value ) + Number(  $( '.bbet' ).value )} sats\n\nAmount miners will get: ${Number( $( '.mfee' ).value ) * 300} sats\n\nAmount you can get with no dispute: ${return_after_low_fees} sats\n\nAmount the escrow will get if there is a dispute: ${$( '.efee' ).value} sats\n\nAmount you can get after a dispute: ${return_after_max_fees} sats\n\nProfit if you win with no dispute: ${return_after_low_fees - Number( $( '.abet' ).value )} sats\n\nProfit if you win after a dispute: ${return_after_max_fees - Number( $( '.abet' ).value )} sats
+            ` );
+            if ( !conf ) return;
             showModal( "loading..." );
             var maker_nsec = ($('.asec').value);
             privKey = privkeyFromNsec( maker_nsec );
@@ -1197,6 +1355,7 @@
             var taker_pic = sessionStorage.taker_pic;
             var escrow_nym = sessionStorage.escrow_nym;
             var escrow_pic = sessionStorage.escrow_pic;
+            var mining_fee = Number( $( '.mfee' ).value ) * 300;
             var json = {
                 maker_nsec,
                 maker_pub,
@@ -1212,7 +1371,8 @@
                 taker_nym,
                 taker_pic,
                 escrow_nym,
-                escrow_pic
+                escrow_pic,
+                mining_fee
             }
             sessionStorage["json"] = JSON.stringify(json);
             //stow the info on nostr and get the event id
@@ -1249,9 +1409,19 @@
                 if ( interpriv ) sessionStorage["nsec"] = interpriv;
                 $$('.addy')[0].value = json["taker_address"];
                 $$('.epub')[1].value = pubkeyToNpub( json["escrow_pub"] );
-                $$('.abet')[1].value = json["maker_sats"];
-                $$('.bbet')[1].value = json["taker_sats"];
-                $$('.efee')[1].value = json["escrow_sats"];
+                $$('.abet')[1].value = json["maker_sats"] + " sats";
+                $$('.bbet')[1].value = json["taker_sats"] + " sats";
+                $$('.efee')[1].value = json["escrow_sats"] + " sats";
+                var mfee_dollars = await satsToDollars( json["mining_fee"] );
+                mfee_dollars = mfee_dollars.toFixed( 2 );
+                if ( json["mining_fee"] / 300 < Number( sessionStorage.fee ) * 3 ) $$( '.fee_warning' )[ 1 ].style.display = "block";
+                $( '.current_rates' ).innerText = sessionStorage.fee;
+                $( '.rec_rate' ).innerText = Number( sessionStorage.fee ) * 300;
+                $( '.ndis' ).value = String( json[ "maker_sats" ] + json[ "taker_sats" ] - json[ "mining_fee" ] ) + " sats";
+                $( '.ydis' ).value = String( json[ "maker_sats" ] + json[ "taker_sats" ] - json[ "mining_fee" ] + json[ "escrow_sats" ] ) + " sats";
+                $( '.npro' ).value = String( ( json[ "maker_sats" ] + json[ "taker_sats" ] - json[ "mining_fee" ] ) - json[ "taker_sats" ] ) + " sats";
+                $( '.ypro' ).value = String( ( json[ "maker_sats" ] + json[ "taker_sats" ] - json[ "mining_fee" ] + json[ "escrow_sats" ] ) - json[ "taker_sats" ] ) + " sats";
+                $$( '.mfee' )[1].value = json["mining_fee"] + ` sats ($${mfee_dollars})`
                 $$('.text')[1].innerText = json["contract_text"];
                 $$( '.minfo' )[ 1 ].style.display = "inline-block";
                 $$( '.minfo .pic' )[ 1 ].src = json[ "maker_pic" ];
@@ -1452,7 +1622,7 @@
                   },
                 }],
                 vout: [{
-                  value: json["maker_sats"] + json["taker_sats"] - 500,
+                  value: json["maker_sats"] + json["taker_sats"] - json[ "mining_fee" ],
                   // bcrt1q6zpf4gefu4ckuud3pjch563nm7x27u4ruahz3y
                   scriptPubKey: tapscript.Address.toScriptPubKey(json.maker_address)
                 }]
@@ -1485,7 +1655,7 @@
                 }],
                 vout: [{
                   //subtract 500 (the mining fee) and 546 (for vout 1 to exist) and the escrow's fee
-                  value: json["maker_sats"] + json["taker_sats"] - ( 500 + 546 + json["escrow_sats"] ),
+                  value: json["maker_sats"] + json["taker_sats"] - ( json[ "mining_fee" ] + 546 + json["escrow_sats"] ),
                   // bcrt1q6zpf4gefu4ckuud3pjch563nm7x27u4ruahz3y
                   scriptPubKey: tapscript.Address.toScriptPubKey(json.maker_address)
                 },{
