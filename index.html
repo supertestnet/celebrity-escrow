@@ -1422,7 +1422,7 @@
                 $( '.ndis' ).value = String( json[ "maker_sats" ] + json[ "taker_sats" ] - json[ "mining_fee" ] ) + " sats";
                 $( '.ydis' ).value = String( json[ "maker_sats" ] + json[ "taker_sats" ] - json[ "mining_fee" ] + json[ "escrow_sats" ] ) + " sats";
                 $( '.npro' ).value = String( ( json[ "maker_sats" ] + json[ "taker_sats" ] - json[ "mining_fee" ] ) - json[ "taker_sats" ] ) + " sats";
-                $( '.ypro' ).value = String( ( json[ "maker_sats" ] + json[ "taker_sats" ] - json[ "mining_fee" ] + json[ "escrow_sats" ] ) - json[ "taker_sats" ] ) + " sats";
+                $( '.ypro' ).value = String( ( json[ "maker_sats" ] + json[ "taker_sats" ] - ( json[ "mining_fee" ] + json[ "escrow_sats" ] ) ) - json[ "taker_sats" ] ) + " sats";
                 $$( '.mfee' )[1].value = json["mining_fee"] + ` sats ($${mfee_dollars})`
                 $$('.text')[1].innerText = json["contract_text"];
                 $$( '.minfo' )[ 1 ].style.display = "inline-block";
