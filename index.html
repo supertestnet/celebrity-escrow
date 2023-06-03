@@ -17,9 +17,11 @@
     </script>
     <title>Celebrity Escrow</title>
     <script>
-        //todo: figure out how to ensure users can safely leave and return to a contract before its resolution
+        //todo: let users safely leave and return to a contract before its resolution
         //todo: add an automatic refund checkbox which, if clicked, makes it so that if the escrow never responds, both users get their money back after a timelock expires
         //todo: use more relays
+        //todo: let the taker to get a refund if they pay but the maker leaves them hanging
+        //todo: alternatively, do coinjoin so neither the maker nor the taker needs a refund
         function pubkeyToNpub(hex) {
           return bech32.bech32.encode("npub", bech32.bech32.toWords(buffer.Buffer.from(hex, "hex")));
         }
@@ -151,8 +153,8 @@
         for (var key of url_keys) $_GET[key] = url_params.get(key);
     </script>
     <script>
-        var mempoolNetwork = "testnet/"; //testnet: "testnet/" | signet: "signet/" | mainnet: ""
-        var mempoolnet = "testnet";
+        var mempoolNetwork = ""; //testnet: "testnet/" | signet: "signet/" | mainnet: ""
+        var mempoolnet = "mainnet";
         if ( $_GET[ "network" ] == "testnet" ) {
             mempoolNetwork = "testnet/";
             mempoolnet = "testnet";
@@ -160,6 +162,10 @@
         if ( $_GET[ "network" ] == "signet" ) {
             mempoolNetwork = "signet/";
             mempoolnet = "testnet"; //this one is identical for testnet and signet
+        }
+        if ( $_GET[ "network" ] == "mainnet" ) {
+            mempoolNetwork = "";
+            mempoolnet = "mainnet";
         }
         if ( localStorage.privkey && $_GET[ "role" ] == "taker" && !$_GET[ "privkey" ] ) {
             var url = window.location.href + "&privkey=" + localStorage.privkey;
