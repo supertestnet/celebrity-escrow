@@ -17,10 +17,8 @@
     </script>
     <title>Celebrity Escrow</title>
     <script>
-        //todo: automatically detect when the money is paid out & show the users info about who won
-        //todo: figure out how to ensure users can "come back to" a contract after several days or weeks by merely clicking a link (this isn't safe to do right now because the page automatically does some stuff on pageload which it shouldn't do if the contract is already finalized and you're just waiting on results)
+        //todo: figure out how to ensure users can safely leave and return to a contract before its resolution
         //todo: add an automatic refund checkbox which, if clicked, makes it so that if the escrow never responds, both users get their money back after a timelock expires
-        //todo: when the maker pays, save that info so that next time he loads the screen, it doesn't briefly tell him to make a deposit
         //todo: use more relays
         function pubkeyToNpub(hex) {
           return bech32.bech32.encode("npub", bech32.bech32.toWords(buffer.Buffer.from(hex, "hex")));
@@ -200,7 +198,7 @@
             `?contract=${signedEvent.id}&decryption_key=${ephemeral_priv}`;
           if ( $_GET[ "network" ] ) url += "&network=" + $_GET[ "network" ];
           var content = `
-            <p>Share <a style="color: blue; text-decoration: underline;" href="${url + "&role=taker"}" target="_blank">this link</a> with the taker and wait for their response</p>
+            <p>Share <a style="color: blue; text-decoration: underline;" href="${url + "&role=taker"}" target="_blank">this link</a> with the taker and wait for their response -- and don't leave this page or they might lose their deposit, just wait for the page to update and tell you what to do next</p>
           `;
           showModal( content );
           console.log(url + "&role=escrow&decryption_key=" + ephemeral_priv);
@@ -1123,6 +1121,100 @@
             var value_in_dollars = Number( String( sats ).padStart( 8, "0" ).slice( 0,-9 ) + "." + String( sats ).padStart( 8, "0" ).slice( -9 ) ) * bitcoin_price;
             return value_in_dollars;
         }
+        async function addressOnceSentMoney( address, network ) {
+            var nonjson = await getData( "https://mempool.space/" + network + "api/address/" + address );
+            var json = JSON.parse( nonjson );
+            if ( json[ "chain_stats" ][ "spent_txo_count" ] > 0 || json[ "mempool_stats" ][ "spent_txo_count" ] > 0 ) {
+                return true;
+            }
+            return false;
+        }
+        async function addressSentMoneyInThisTx( address, network, funding_txid ) {
+            return new Promise( async function( resolve, reject ) {
+                var nonjson = await getData( "https://mempool.space/" + network + "/api/address/" + address + "/txs" );
+                json = JSON.parse( nonjson );
+                json.forEach( function( tx ) {
+                    tx[ "vin" ].forEach( function( input ) {
+                        if ( input[ "txid" ] == funding_txid ) {
+                            resolve( tx[ "txid" ] );
+                        }
+                    });
+                });
+            });
+        }
+        var watchForVictory = async ( maker_or_taker ) => {
+            var receive_address = JSON.parse( sessionStorage.json )[ "maker_address" ];
+            if ( maker_or_taker == "taker" ) receive_address = JSON.parse( sessionStorage.json )[ "taker_address" ];
+            var pubkey = "abababababababababababababababababababababababababababababababab";
+            var json = JSON.parse(sessionStorage["json"]);
+            var taker_pub = $_GET[ "taker" ];
+            var contract_hash = bytesToHex( bitcoinjs.crypto.sha256( json[ "contract_text" ] ) );
+            contract_hash = "0000000000000000" + contract_hash.substring( 16 );
+            var hash_pub = nobleSecp256k1.getPublicKey( contract_hash, true ).substring( 2 );
+            var tweaked_key = add2PubkeysAndReturnCompressedPubkeyOfResult( json["escrow_pub"], hash_pub ).substring( 2 );
+            var script = [pubkeyFromNpub( json["maker_pub"] ), 'OP_CHECKSIG', 'OP_SWAP', taker_pub, 'OP_CHECKSIG', 'OP_ADD', 'OP_SWAP', tweaked_key, 'OP_CHECKSIG', 'OP_ADD', 'OP_1', 'OP_GREATERTHAN'];
+            // For tapscript spends, we need to convert this script into a 'tapleaf'.
+            var tapleaf = tapscript.Tap.encodeScript(script)
+            // Generate a tapkey that includes our leaf script. Also, create a merlke proof
+            // (cblock) that targets our leaf and proves its inclusion in the tapkey.
+            var [tpubkey, cblock] = tapscript.Tap.getPubKey(pubkey, {
+              target: tapleaf
+            });
+            // A taproot address is simply the tweaked public key, encoded in bech32 format.
+            var sending_address = tapscript.Address.p2tr.fromPubKey(tpubkey, mempoolnet);
+            var itSentMoney = await addressOnceSentMoney( sending_address, mempoolNetwork );
+            var funding_info = await addressReceivedMoneyInTheseTxs( sending_address,  mempoolNetwork );
+            var funding_txid = funding_info[ 0 ][ 0 ];
+            var txid = await addressSentMoneyInThisTx( sending_address, mempoolNetwork, funding_txid );
+            var txinfo = await getData( `https://mempool.space/${mempoolNetwork}api/tx/${txid}` );
+            var winning_address = JSON.parse( txinfo )[ "vout" ][ 0 ][ "scriptpubkey_address" ];
+            var i_won = false;
+            var happy_path = false;
+            if ( winning_address == receive_address ) {
+                i_won = true;
+                console.log( "I won!" );
+            }
+            if ( JSON.parse( txinfo )[ "vout" ].length > 1 ) {
+                console.log( "And it was through the escrow path!" );
+            } else {
+                happy_path = true;
+                console.log( "And it was through the happy path!" );
+            }
+            var content = `<p>`;
+            if ( i_won ) {
+                content += `
+                    Congratulations, you got the money.
+                `;
+            } else {
+                content += `
+                    Sorry to say your counterparty got the money.
+                `;
+            }
+            if ( happy_path && i_won ) {
+                content += `
+                    Moveover, your counterparty sent it to you, so good on them.
+                `;
+            } else if ( happy_path ) {
+                content += `
+                    Moreover, you sent it to them, so good on you.
+                `;
+            }
+            if ( !happy_path && i_won ) {
+                content += `
+                    Sadly, your counterparty did not send you the money, but the escrow did, so good on them.
+                `;
+            } else if ( !happy_path ) {
+                content += `
+                    It is sad that you were unable to send the money to your counterparty yourself, but your counterparty did it for you, so good on them.
+                `;
+            }
+            content += `Please use Celebrity Escrow again the next time you need to escrow some money. Toodles!`;
+            showModal( content );
+            $$( '.open_dispute' )[ 0 ].style.display = "none";
+            $$( '.open_dispute' )[ 1 ].style.display = "none";
+            $$( '.taker_won' )[ 0 ].style.display = "none";
+            $$( '.taker_won' )[ 1 ].style.display = "none";
+        }
     </script>
 </head>
 
@@ -1383,6 +1475,7 @@
                 if ( $_GET[ "accepted" ] ) {
                     window.onload = () => {showModal( `Checking for the maker's deposit, please wait...` );}
                     $( '.disappearing_maker_won' ).style.display = "inline";
+                    watchForVictory( "maker" );
                     $( '.taker_form_part_1' ).style.display = "none";
                     $$( '.open_dispute' )[ 1 ].style.display = "inline";
                     $$( '.open_dispute' )[ 1 ].onclick = () => {
@@ -1551,6 +1644,7 @@
               $( '.maker_form_part_1' ).style.display = "none";
               $( '.maker_form_part_2' ).style.display = "none";
               $( '.disappearing_taker_won' ).style.display = "inline";
+              watchForVictory( "maker" );
               $$( '.open_dispute' )[ 0 ].style.display = "inline";
               $$( '.open_dispute' )[ 0 ].onclick = () => {
                   var url = window.location.protocol + "//" + window.location.hostname + window.location.pathname + "?taker=" + $_GET[ "taker" ] + "&contract=" + $_GET[ "contract" ] + "&role=escrow&decryption_key=" + $_GET[ "decryption_key" ];
@@ -1582,17 +1676,22 @@
               var address = tapscript.Address.p2tr.fromPubKey(tpubkey, mempoolnet)
               console.log( "contract address:", address );
               window.onload = () => {
-                  showModal( `Please deposit ${json[ "maker_sats" ]} sats to this address: ${address}` );
+                  if ( !$_GET[ "paid" ] ) showModal( `Please deposit ${json[ "maker_sats" ]} sats to this address: ${address}` );
               }
               await loopTilAddressReceivesMoneyTwice( address, mempoolNetwork );
               await waitSomeSeconds( 2 );
               var txinfo = await addressReceivedMoneyInTheseTxs( address, mempoolNetwork );
+              if ( !$_GET[ "paid" ] ) {
+                  var url = window.location.href;
+                  url += "&paid=true";
+                  window.location.href = url;
+              }
               txinfo.sort( ( a, b ) => {
                   if ( BigInt( "0x" + a[ 0 ] ) == BigInt( "0x" + b[ 0 ] ) && a[ 0 ] < a[ 1 ] ) return 0;
                   if ( BigInt( "0x" + a[ 0 ] ) < BigInt( "0x" + b[ 0 ] ) ) return 0;
                   return 1;
               });
-              if ( $( '.modal div' ) ) $( '.modal div' ).click();
+              if ( $( '.modal div' ) && $( '.modal' ).innerText.toLowerCase().includes( "please deposit" ) ) $( '.modal div' ).click();
               var txid1 = txinfo[ 0 ][ 0 ];
               var vout1 = txinfo[ 0 ][ 1 ];
               var amt1 = txinfo[ 0 ][ 2 ];
