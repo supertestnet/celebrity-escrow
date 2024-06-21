@@ -7,8 +7,6 @@ Celebrity Escrow is a censorship resistant peer to peer escrow built with bitcoi
 
 ## How it works
 
-*See the [spec](https://github.com/ArcadeLabsInc/celebrity-escrow/wiki/Spec) for more detail.*
-
 1. The maker creates a new contract by entering their details, the taker's details, escrow's details, contract terms and stake amounts. They then publish this to the Nostr protocol.
 
 2. The taker views the contract details and can choose to accept the contract. If they accept, they enter their nsec and sign the contract with their Bitcoin private key. They then publish this acceptance to Nostr, referencing the original contract event.
